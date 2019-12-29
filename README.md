@@ -24,7 +24,7 @@ pip install requirements.txt
 ```
 
 ## Usage
-* To reproduce the paper: simply go through the notebook `Grad_buffer.ipynb`
+* To reproduce the paper: simply go through the notebook `Grad_buffer.ipynb`. Note that some images not properly loaded in browser will show-up in downloaded local version.
 * To implement your own Learning-to-Optimize works: please feel free to use `meta_module.py`
 
 ## Method
