@@ -263,6 +263,256 @@ class MetaSequential(MetaModule):
         return input
 
 
+class MetaModuleList(MetaModule):
+    r"""Holds submodules in a list.
+
+    :class:`~MetaModuleList` can be indexed like a regular Python list, but
+    modules it contains are properly registered, and will be visible by all
+    :class:`~MetaModule` methods.
+
+    Arguments:
+        modules (iterable, optional): an iterable of modules to add
+
+    Example::
+
+        class MyModule(MetaModule):
+            def __init__(self):
+                super(MyModule, self).__init__()
+                self.linears = MetaModuleList([MetaLinear(10, 10) for i in range(10)])
+
+            def forward(self, x):
+                # ModuleList can act as an iterable, or be indexed using ints
+                for i, l in enumerate(self.linears):
+                    x = self.linears[i // 2](x) + l(x)
+                return x
+    """
+
+    def __init__(self, modules=None):
+        super(MetaModuleList, self).__init__()
+        if modules is not None:
+            self += modules
+
+    def _get_abs_string_index(self, idx):
+        """Get the absolute index for the list of modules"""
+        idx = operator.index(idx)
+        if not (-len(self) <= idx < len(self)):
+            raise IndexError('index {} is out of range'.format(idx))
+        if idx < 0:
+            idx += len(self)
+        return str(idx)
+
+    def __getitem__(self, idx):
+        if isinstance(idx, slice):
+            return self.__class__(list(self._modules.values())[idx])
+        else:
+            return self._modules[self._get_abs_string_index(idx)]
+
+    def __setitem__(self, idx, module):
+        idx = self._get_abs_string_index(idx)
+        return setattr(self, str(idx), module)
+
+    def __delitem__(self, idx):
+        if isinstance(idx, slice):
+            for k in range(len(self._modules))[idx]:
+                delattr(self, str(k))
+        else:
+            delattr(self, self._get_abs_string_index(idx))
+        # To preserve numbering, self._modules is being reconstructed with modules after deletion
+        str_indices = [str(i) for i in range(len(self._modules))]
+        self._modules = OrderedDict(list(zip(str_indices, self._modules.values())))
+
+    def __len__(self):
+        return len(self._modules)
+
+    def __iter__(self):
+        return iter(self._modules.values())
+
+    def __iadd__(self, modules):
+        return self.extend(modules)
+
+    def __dir__(self):
+        keys = super(ModuleList, self).__dir__()
+        keys = [key for key in keys if not key.isdigit()]
+        return keys
+
+    def insert(self, index, module):
+        r"""Insert a given module before a given index in the list.
+
+        Arguments:
+            index (int): index to insert.
+            module (MetaModule): module to insert
+        """
+        for i in range(len(self._modules), index, -1):
+            self._modules[str(i)] = self._modules[str(i - 1)]
+        self._modules[str(index)] = module
+
+
+    def append(self, module):
+        r"""Appends a given module to the end of the list.
+
+        Arguments:
+            module (MetaModule): module to append
+        """
+        self.add_module(str(len(self)), module)
+        return self
+
+
+    def extend(self, modules):
+        r"""Appends modules from a Python iterable to the end of the list.
+
+        Arguments:
+            modules (iterable): iterable of modules to append
+        """
+        if not isinstance(modules, container_abcs.Iterable):
+            raise TypeError("ModuleList.extend should be called with an "
+                            "iterable, but got " + type(modules).__name__)
+        offset = len(self)
+        for i, module in enumerate(modules):
+            self.add_module(str(offset + i), module)
+        return self
+
+
+
+class ModuleDict(MetaModule):
+    r"""Holds submodules in a dictionary.
+
+    :class:`~MetaModuleDict` can be indexed like a regular Python dictionary,
+    but modules it contains are properly registered, and will be visible by all
+    :class:`~MetaModule` methods.
+
+    :class:`~MetaModuleDict` is an **ordered** dictionary that respects
+
+    * the order of insertion, and
+
+    * in :meth:`~MetaModuleDict.update`, the order of the merged ``OrderedDict``
+      or another :class:`~MetaModuleDict` (the argument to :meth:`~MetaModuleDict.update`).
+
+    Note that :meth:`~MetaModuleDict.update` with other unordered mapping
+    types (e.g., Python's plain ``dict``) does not preserve the order of the
+    merged mapping.
+
+    Arguments:
+        modules (iterable, optional): a mapping (dictionary) of (string: module)
+            or an iterable of key-value pairs of type (string, module)
+
+    Example::
+
+        class MyModule(MetaModule):
+            def __init__(self):
+                super(MyModule, self).__init__()
+                self.choices = MetaModuleDict({
+                        'conv': MetaConv2d(10, 10, 3),
+                        'pool': nn.MaxPool2d(3)
+                })
+                self.activations = MetaModuleDict([
+                        ['lrelu', nn.LeakyReLU()],
+                        ['prelu', nn.PReLU()]
+                ])
+
+            def forward(self, x, choice, act):
+                x = self.choices[choice](x)
+                x = self.activations[act](x)
+                return x
+    """
+
+    def __init__(self, modules=None):
+        super(MetaModuleDict, self).__init__()
+        if modules is not None:
+            self.update(modules)
+
+    def __getitem__(self, key):
+        return self._modules[key]
+
+    def __setitem__(self, key, module):
+        self.add_module(key, module)
+
+    def __delitem__(self, key):
+        del self._modules[key]
+
+    def __len__(self):
+        return len(self._modules)
+
+    def __iter__(self):
+        return iter(self._modules)
+
+    def __contains__(self, key):
+        return key in self._modules
+
+    def clear(self):
+        """Remove all items from the ModuleDict.
+        """
+        self._modules.clear()
+
+
+    def pop(self, key):
+        r"""Remove key from the ModuleDict and return its module.
+
+        Arguments:
+            key (string): key to pop from the ModuleDict
+        """
+        v = self[key]
+        del self[key]
+        return v
+
+
+    def keys(self):
+        r"""Return an iterable of the ModuleDict keys.
+        """
+        return self._modules.keys()
+
+
+    def items(self):
+        r"""Return an iterable of the ModuleDict key/value pairs.
+        """
+        return self._modules.items()
+
+
+    def values(self):
+        r"""Return an iterable of the ModuleDict values.
+        """
+        return self._modules.values()
+
+
+    def update(self, modules):
+        r"""Update the :class:`~MetaModuleDict` with the key-value pairs from a
+        mapping or an iterable, overwriting existing keys.
+
+        .. note::
+            If :attr:`modules` is an ``OrderedDict``, a :class:`~MetaModuleDict`, or
+            an iterable of key-value pairs, the order of new elements in it is preserved.
+
+        Arguments:
+            modules (iterable): a mapping (dictionary) from string to :class:`~MetaModule`,
+                or an iterable of key-value pairs of type (string, :class:`~MetaModule`)
+        """
+        if not isinstance(modules, container_abcs.Iterable):
+            raise TypeError("ModuleDict.update should be called with an "
+                            "iterable of key/value pairs, but got " +
+                            type(modules).__name__)
+
+        if isinstance(modules, container_abcs.Mapping):
+            if isinstance(modules, (OrderedDict, ModuleDict)):
+                for key, module in modules.items():
+                    self[key] = module
+            else:
+                for key, module in sorted(modules.items()):
+                    self[key] = module
+        else:
+            for j, m in enumerate(modules):
+                if not isinstance(m, container_abcs.Iterable):
+                    raise TypeError("ModuleDict update sequence element "
+                                    "#" + str(j) + " should be Iterable; is" +
+                                    type(m).__name__)
+                if not len(m) == 2:
+                    raise ValueError("ModuleDict update sequence element "
+                                     "#" + str(j) + " has length " + str(len(m)) +
+                                     "; 2 is required")
+                self[m[0]] = m[1]
+
+    def forward(self):
+        raise NotImplementedError()
+
+
 
 class LeNet(MetaModule):
     def __init__(self, n_out):
