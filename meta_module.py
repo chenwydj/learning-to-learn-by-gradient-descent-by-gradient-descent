@@ -197,18 +197,18 @@ class MetaSequential(MetaModule):
     To make it easier to understand, here is a small example::
 
         # Example of using Sequential
-        model = nn.Sequential(
-                  nn.Conv2d(1,20,5),
+        model = MetaSequential(
+                  MetaConv2d(1,20,5),
                   nn.ReLU(),
-                  nn.Conv2d(20,64,5),
+                  MetaConv2d(20,64,5),
                   nn.ReLU()
                 )
 
         # Example of using Sequential with OrderedDict
-        model = nn.Sequential(OrderedDict([
-                  ('conv1', nn.Conv2d(1,20,5)),
+        model = MetaSequential(OrderedDict([
+                  ('conv1', MetaConv2d(1,20,5)),
                   ('relu1', nn.ReLU()),
-                  ('conv2', nn.Conv2d(20,64,5)),
+                  ('conv2', MetaConv2d(20,64,5)),
                   ('relu2', nn.ReLU())
                 ]))
     """
