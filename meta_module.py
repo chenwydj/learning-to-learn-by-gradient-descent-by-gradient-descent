@@ -5,6 +5,8 @@ import numpy as np
 import torchvision
 from torch.autograd import Variable
 import itertools
+import operator
+from itertools import islice
 
 def to_var(x, requires_grad=True):
     if torch.cuda.is_available():
