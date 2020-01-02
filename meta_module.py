@@ -7,6 +7,7 @@ from torch.autograd import Variable
 import itertools
 import operator
 from itertools import islice
+from collections import OrderedDict
 
 def to_var(x, requires_grad=True):
     if torch.cuda.is_available():
