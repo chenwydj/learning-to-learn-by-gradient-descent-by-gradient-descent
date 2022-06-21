@@ -1,5 +1,5 @@
 matplotlib==3.0.0
-numpy==1.16.1
+numpy==1.22.0
 seaborn==0.9.0
 scipy==1.1.0
 torch==1.1.0
