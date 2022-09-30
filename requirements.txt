@@ -5,5 +5,5 @@ scipy==1.1.0
 torch==1.1.0
 torchvision==0.3.0
 tqdm==4.25.0
-joblib==0.13.2
+joblib==1.2.0
 pandas==0.25.1
